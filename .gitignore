@@ -47,5 +47,5 @@ app.*.map.json
 
 
 .env
-build/
+build/git branch
 dist/
