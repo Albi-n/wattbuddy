@@ -5,7 +5,7 @@ class BillHistoryScreen extends StatefulWidget {
   const BillHistoryScreen({super.key});
 
   @override
-  _BillHistoryScreenState createState() => _BillHistoryScreenState();
+  State<BillHistoryScreen> createState() => _BillHistoryScreenState();
 }
 
 class _BillHistoryScreenState extends State<BillHistoryScreen> {
@@ -90,7 +90,7 @@ class _BillHistoryScreenState extends State<BillHistoryScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
+        color: Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: Colors.white24),
       ),
@@ -142,7 +142,7 @@ class _BillHistoryScreenState extends State<BillHistoryScreen> {
       margin: const EdgeInsets.only(bottom: 15),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
+        color: Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: Colors.white24),
       ),
@@ -186,8 +186,8 @@ class _BillHistoryScreenState extends State<BillHistoryScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: paid
-            ? Colors.green.withOpacity(0.2)
-            : Colors.orange.withOpacity(0.2),
+            ? Colors.green.withValues(alpha: 0.2)
+            : Colors.orange.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: paid ? Colors.green : Colors.orange),
       ),
@@ -256,8 +256,8 @@ class _StatusChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
           color: paid
-              ? Colors.green.withOpacity(0.2)
-              : Colors.orange.withOpacity(0.2),
+              ? Colors.green.withValues(alpha: 0.2)
+              : Colors.orange.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(15),
           border: Border.all(color: paid ? Colors.green : Colors.orange),
         ),

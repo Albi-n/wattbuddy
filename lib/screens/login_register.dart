@@ -8,7 +8,7 @@ class LoginRegisterScreen extends StatefulWidget {
   const LoginRegisterScreen({super.key});
 
   @override
-  _LoginRegisterScreenState createState() => _LoginRegisterScreenState();
+  State<LoginRegisterScreen> createState() => _LoginRegisterScreenState();
 }
 
 class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
@@ -121,7 +121,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                 constraints: const BoxConstraints(maxWidth: 420),
                 padding: const EdgeInsets.all(25),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.10),
+                  color: Colors.white.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(color: Colors.white24),
                 ),
