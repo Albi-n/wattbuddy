@@ -8,7 +8,7 @@ class DevicesScreen extends StatefulWidget {
   const DevicesScreen({super.key});
 
   @override
-  State<DevicesScreen> createState() => _DevicesScreenState();
+  _DevicesScreenState createState() => _DevicesScreenState();
 }
 
 class _DevicesScreenState extends State<DevicesScreen> {
@@ -286,7 +286,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
     return Container(
       padding: const EdgeInsets.all(16), // 🔽 reduced padding
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
+        color: Colors.white.withOpacity(0.08),
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: Colors.white24),
       ),
@@ -316,7 +316,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
       padding: const EdgeInsets.all(20),
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
+        color: Colors.white.withOpacity(0.08),
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: Colors.white24),
       ),

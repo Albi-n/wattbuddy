@@ -21,7 +21,7 @@ class ApiService {
   }
 
   // For a real phone on the same Wi-Fi use: http://YOUR_PC_IP:4000/api
-  
+
   // Connection timeout - increase from 10 to 30 seconds to allow for database operations
   static const Duration connectionTimeout = Duration(seconds: 30);
 
@@ -59,7 +59,6 @@ class ApiService {
             headers: {'Content-Type': 'application/json'},
           )
           .timeout(connectionTimeout);
-
       debugPrint('📥 Response: ${response.statusCode}');
       return jsonDecode(response.body);
     } catch (e) {
@@ -113,9 +112,6 @@ class ApiService {
         'message': 'Cannot reach server. Is the backend running on http://10.0.2.2:4000?',
         'success': false,
       };
-    } catch (e) {
-      debugPrint('❌ Registration error: $e');
-      return {'message': 'Error: $e', 'success': false};
     }
   }
 
@@ -157,9 +153,7 @@ class ApiService {
     } on SocketException catch (e) {
       debugPrint('❌ Network error: $e');
       return false;
-    } catch (e) {
-      debugPrint('❌ Login error: $e');
-      return false;
     }
   }
+
 }

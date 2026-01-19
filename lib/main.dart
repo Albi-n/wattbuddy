@@ -12,7 +12,7 @@ import 'screens/ai_insights_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // await Firebase.initializeApp();
-await NotificationService.initialize();
+  await NotificationService.initialize();
   runApp(const WattBuddyApp());
 }
 

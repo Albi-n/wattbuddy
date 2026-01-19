@@ -49,7 +49,7 @@ class PowerLimitNotificationService {
     double powerLimit,
   ) async {
     try {
-      final response = await ApiService.post(
+      final data = await ApiService.post(
         '/power-limit/check',
         {
           'userId': userId,
@@ -58,9 +58,9 @@ class PowerLimitNotificationService {
         },
       );
 
-      if (response['notificationSent'] == true) {
-        final percentage = response['percentage'] ?? 0.0;
-        final threshold = response['threshold'] ?? 0;
+      if (data['notificationSent'] == true) {
+        final percentage = data['percentage'] ?? 0.0;
+        final threshold = data['threshold'] ?? 0;
 
         await showPowerLimitNotification(
           title: threshold == 100
@@ -83,7 +83,7 @@ class PowerLimitNotificationService {
     double dailyLimit,
   ) async {
     try {
-      final response = await ApiService.post(
+      final data = await ApiService.post(
         '/power-limit/set',
         {
           'userId': userId,
@@ -91,7 +91,7 @@ class PowerLimitNotificationService {
         },
       );
 
-      return response['success'] == true;
+      return data['success'] == true;
     } catch (e) {
       print('❌ Error setting power limit: $e');
       return false;
@@ -103,14 +103,14 @@ class PowerLimitNotificationService {
     String userId,
   ) async {
     try {
-      final response = await ApiService.get(
+      final data = await ApiService.get(
         '/power-limit/$userId',
       );
 
-      if (response['success'] == true) {
+      if (data['success'] == true) {
         return {
-          'daily_power_limit': response['daily_power_limit'] ?? 5000.0,
-          'alert_threshold': response['alert_threshold'] ?? 0.75,
+          'daily_power_limit': data['daily_power_limit'] ?? 5000.0,
+          'alert_threshold': data['alert_threshold'] ?? 0.75,
         };
       }
       return null;

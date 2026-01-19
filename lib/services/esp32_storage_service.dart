@@ -13,7 +13,7 @@ class ESP32StorageService {
     required double temperature,
   }) async {
     try {
-      final response = await ApiService.post(
+      final data = await ApiService.post(
         '/esp32/data',
         {
           'userId': userId,
@@ -29,7 +29,7 @@ class ESP32StorageService {
       );
 
       print('✅ ESP32 data stored successfully');
-      return response['success'] == true;
+      return data['success'] == true;
     } catch (e) {
       print('❌ Error storing ESP32 data: $e');
       return false;
@@ -42,12 +42,12 @@ class ESP32StorageService {
     int limit = 100,
   }) async {
     try {
-      final response = await ApiService.get(
+      final data = await ApiService.get(
         '/esp32/latest/$userId?limit=$limit',
       );
 
-      if (response['success'] == true && response['readings'] != null) {
-        return List<Map<String, dynamic>>.from(response['readings']);
+      if (data['success'] == true && data['readings'] != null) {
+        return List<Map<String, dynamic>>.from(data['readings']);
       }
       return null;
     } catch (e) {
@@ -63,12 +63,12 @@ class ESP32StorageService {
   }) async {
     try {
       final dateParam = date ?? DateTime.now().toString().split(' ')[0];
-      final response = await ApiService.get(
+      final data = await ApiService.get(
         '/esp32/stats/$userId?date=$dateParam',
       );
 
-      if (response['success'] == true && response['stats'] != null) {
-        return Map<String, dynamic>.from(response['stats']);
+      if (data['success'] == true && data['stats'] != null) {
+        return Map<String, dynamic>.from(data['stats']);
       }
       return null;
     } catch (e) {
@@ -84,12 +84,12 @@ class ESP32StorageService {
   }) async {
     try {
       final dateParam = date ?? DateTime.now().toString().split(' ')[0];
-      final response = await ApiService.get(
+      final data = await ApiService.get(
         '/esp32/hourly/$userId?date=$dateParam',
       );
 
-      if (response['success'] == true && response['hourly'] != null) {
-        return List<Map<String, dynamic>>.from(response['hourly']);
+      if (data['success'] == true && data['hourly'] != null) {
+        return List<Map<String, dynamic>>.from(data['hourly']);
       }
       return null;
     } catch (e) {

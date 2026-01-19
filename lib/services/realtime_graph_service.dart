@@ -7,12 +7,12 @@ class RealtimeGraphService {
     int minutes = 60,
   }) async {
     try {
-      final response = await ApiService.get(
+      final data = await ApiService.get(
         '/graph/live/$userId?minutes=$minutes',
       );
 
-      if (response['success'] == true && response['graphData'] != null) {
-        return List<Map<String, dynamic>>.from(response['graphData']);
+      if (data['success'] == true && data['graphData'] != null) {
+        return List<Map<String, dynamic>>.from(data['graphData']);
       }
       return null;
     } catch (e) {
@@ -26,15 +26,15 @@ class RealtimeGraphService {
     String userId,
   ) async {
     try {
-      final response = await ApiService.get(
+      final data = await ApiService.get(
         '/graph/comparison/$userId',
       );
 
-      if (response['success'] == true) {
+      if (data['success'] == true) {
         return {
-          'today': response['today'] ?? [],
-          'yesterday': response['yesterday'] ?? [],
-          'weekAgo': response['weekAgo'] ?? [],
+          'today': data['today'] ?? [],
+          'yesterday': data['yesterday'] ?? [],
+          'weekAgo': data['weekAgo'] ?? [],
         };
       }
       return null;

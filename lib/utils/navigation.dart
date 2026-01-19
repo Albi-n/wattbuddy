@@ -34,12 +34,12 @@ class NavigationHelper {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Colors.white.withValues(alpha: 0.08),
-            Colors.white.withValues(alpha: 0.04),
+            Colors.white.withOpacity(0.08),
+            Colors.white.withOpacity(0.04),
           ],
         ),
         border: Border(
-          right: BorderSide(color: Colors.white.withValues(alpha: 0.15), width: 1),
+          right: BorderSide(color: Colors.white.withOpacity(0.15), width: 1),
         ),
       ),
       child: Column(
@@ -65,7 +65,7 @@ class NavigationHelper {
                     ),
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.06),
+                      color: Colors.white.withOpacity(0.06),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Padding(
@@ -82,7 +82,7 @@ class NavigationHelper {
             ),
           ),
 
-          Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
+          Divider(color: Colors.white.withOpacity(0.1), height: 1),
 
           const SizedBox(height: 20),
 
@@ -153,7 +153,6 @@ class NavigationHelper {
                       onTap: () async {
                         final prefs = await SharedPreferences.getInstance();
                         await prefs.setBool('isLoggedIn', false);
-                        if (!context.mounted) return;
                         Navigator.pushReplacementNamed(context, '/login');
                       },
                       contentPadding: const EdgeInsets.symmetric(horizontal: 5),
@@ -183,11 +182,11 @@ class NavigationHelper {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: isActive
-            ? const Color(0xFF00D4FF).withValues(alpha: 0.2)
+            ? const Color(0xFF00D4FF).withOpacity(0.2)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
         border: isActive
-            ? Border.all(color: const Color(0xFF00D4FF).withValues(alpha: 0.4))
+            ? Border.all(color: const Color(0xFF00D4FF).withOpacity(0.4))
             : null,
       ),
       child: ListTile(
@@ -195,7 +194,7 @@ class NavigationHelper {
           icon,
           color: isActive
               ? const Color(0xFF00D4FF)
-              : Colors.white.withValues(alpha: 0.6),
+              : Colors.white.withOpacity(0.6),
           size: 22,
         ),
         title: isOpen
@@ -204,7 +203,7 @@ class NavigationHelper {
                 style: TextStyle(
                   color: isActive
                       ? const Color(0xFF00D4FF)
-                      : Colors.white.withValues(alpha: 0.7),
+                      : Colors.white.withOpacity(0.7),
                   fontSize: 14,
                   fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
                 ),

@@ -5,7 +5,7 @@ class BillHistoryScreen extends StatefulWidget {
   const BillHistoryScreen({super.key});
 
   @override
-  State<BillHistoryScreen> createState() => _BillHistoryScreenState();
+  _BillHistoryScreenState createState() => _BillHistoryScreenState();
 }
 
 class _BillHistoryScreenState extends State<BillHistoryScreen> {
@@ -107,11 +107,11 @@ class _BillHistoryScreenState extends State<BillHistoryScreen> {
   Widget _tableHeader() {
     return Row(
       children: const [
-        _HeaderCell("Period"),
-        _HeaderCell("Due Date"),
-        _HeaderCell("Amount"),
-        _HeaderCell("Units"),
-        _HeaderCell("Status"),
+        HeaderCell("Period"),
+        HeaderCell("Due Date"),
+        HeaderCell("Amount"),
+        HeaderCell("Units"),
+        HeaderCell("Status"),
       ],
     );
   }
@@ -123,11 +123,11 @@ class _BillHistoryScreenState extends State<BillHistoryScreen> {
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
-          _Cell(bill['period']),
-          _Cell(bill['dueDate']),
-          _Cell("₹${bill['amount']}"),
-          _Cell("${bill['units']}"),
-          _StatusCell(paid),
+          Cell(bill['period']),
+          Cell(bill['dueDate']),
+          Cell("₹${bill['amount']}"),
+          Cell("${bill['units']}"),
+          StatusCell(paid),
         ],
       ),
     );
@@ -204,9 +204,9 @@ class _BillHistoryScreenState extends State<BillHistoryScreen> {
 
 // ---------------- SMALL WIDGETS ----------------
 
-class _HeaderCell extends StatelessWidget {
+class HeaderCell extends StatelessWidget {
   final String text;
-  const _HeaderCell(this.text);
+  const HeaderCell(this.text, {super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -222,9 +222,9 @@ class _HeaderCell extends StatelessWidget {
   }
 }
 
-class _Cell extends StatelessWidget {
+class Cell extends StatelessWidget {
   final String text;
-  const _Cell(this.text);
+  const Cell(this.text, {super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -234,19 +234,19 @@ class _Cell extends StatelessWidget {
   }
 }
 
-class _StatusCell extends StatelessWidget {
+class StatusCell extends StatelessWidget {
   final bool paid;
-  const _StatusCell(this.paid);
+  const StatusCell(this.paid, {super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(child: _StatusChip(paid));
+    return Expanded(child: StatusChip(paid));
   }
 }
 
-class _StatusChip extends StatelessWidget {
+class StatusChip extends StatelessWidget {
   final bool paid;
-  const _StatusChip(this.paid);
+  const StatusChip(this.paid, {super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -21,12 +21,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ---------------- ESP32 DATA ----------------
   Map<String, dynamic>? esp32Data;
   Timer? _refreshTimer;
-
+  
   // ---------------- STATIC DATA (UNCHANGED) ----------------
   final List<double> monthlyUsage = [110, 130, 145, 140, 155, 135, 124];
   final List<String> months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'];
 
   final List<Map<String, dynamic>> recentBills = [
+    {'period': "Oct-Nov '25", 'amount': 925.50, 'status': 'paid'},
     {'period': "Sep-Oct '25", 'amount': 870.50, 'status': 'due'},
     {'period': "Aug-Sep '25", 'amount': 795.00, 'status': 'paid'},
     {'period': "Jul-Aug '25", 'amount': 910.20, 'status': 'paid'},
@@ -75,7 +76,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         });
       }
     } catch (e) {
-      debugPrint('❌ ESP32 fetch error: $e');
+      debugPrint('❌ ESP32 fetch error: \$e');
     }
   }
 
@@ -99,7 +100,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              "Welcome back, $username! Here's your energy overview.",
+              "Welcome back, \$username! Here's your energy overview.",
               style: const TextStyle(color: Colors.white70, fontSize: 16),
             ),
 
@@ -199,12 +200,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               Text(
                 title,
-                style:
-                    const TextStyle(color: Colors.white70, fontSize: 13),
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
               ),
               const SizedBox(height: 4),
               Text(
-                "$value $unit",
+                "\$value \$unit",
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -262,7 +262,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       getTitlesWidget: (value, _) => Text(
                         value.toInt().toString(),
                         style: const TextStyle(
-                            color: Colors.white70, fontSize: 10),
+                          color: Colors.white70,
+                          fontSize: 10,
+                        ),
                       ),
                     ),
                   ),
@@ -274,7 +276,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           return Text(
                             months[value.toInt()],
                             style: const TextStyle(
-                                color: Colors.white70, fontSize: 10),
+                              color: Colors.white70,
+                              fontSize: 10,
+                            ),
                           );
                         }
                         return const SizedBox();
@@ -289,8 +293,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         .asMap()
                         .entries
                         .map(
-                          (e) => FlSpot(
-                              e.key.toDouble(), e.value),
+                          (e) => FlSpot(e.key.toDouble(), e.value),
                         )
                         .toList(),
                     isCurved: true,
@@ -341,7 +344,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Text(bill['period'],
                       style: const TextStyle(color: Colors.white70)),
                   Text(
-                    "₹${bill['amount']}",
+                    "₹\${bill['amount']}",
                     style: TextStyle(
                       color: bill['status'] == 'paid'
                           ? Colors.green

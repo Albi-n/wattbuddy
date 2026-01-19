@@ -6,12 +6,12 @@ class MLPredictionService {
     String userId,
   ) async {
     try {
-      final response = await ApiService.get(
+      final data = await ApiService.get(
         '/ml-predict/next-hour/$userId',
       );
 
-      if (response['success'] == true && response['prediction'] != null) {
-        final pred = response['prediction'];
+      if (data['success'] == true && data['prediction'] != null) {
+        final pred = data['prediction'];
         return {
           'predictedPower': pred['predictedPower'] ?? 0.0,
           'confidence': pred['confidence'] ?? 0.0,
@@ -31,12 +31,12 @@ class MLPredictionService {
     String userId,
   ) async {
     try {
-      final response = await ApiService.get(
+      final data = await ApiService.get(
         '/ml-predict/next-day/$userId',
       );
 
-      if (response['success'] == true && response['prediction'] != null) {
-        final pred = response['prediction'];
+      if (data['success'] == true && data['prediction'] != null) {
+        final pred = data['prediction'];
         return {
           'predictedDailyEnergy': pred['predictedDailyEnergy'] ?? 0.0,
           'predictedPeakPower': pred['predictedPeakPower'] ?? 0.0,
@@ -57,12 +57,12 @@ class MLPredictionService {
     String userId,
   ) async {
     try {
-      final response = await ApiService.get(
+      final data = await ApiService.get(
         '/ml-predict/anomalies/$userId',
       );
 
-      if (response['success'] == true && response['anomalies'] != null) {
-        return List<Map<String, dynamic>>.from(response['anomalies']);
+      if (data['success'] == true && data['anomalies'] != null) {
+        return List<Map<String, dynamic>>.from(data['anomalies']);
       }
       return [];
     } catch (e) {
@@ -76,13 +76,13 @@ class MLPredictionService {
     String userId,
   ) async {
     try {
-      final response = await ApiService.get(
+      final data = await ApiService.get(
         '/ml-predict/recommendations/$userId',
       );
 
-      if (response['success'] == true && response['recommendations'] != null) {
+      if (data['success'] == true && data['recommendations'] != null) {
         return {
-          'recommendations': List<String>.from(response['recommendations']),
+          'recommendations': List<String>.from(data['recommendations']),
         };
       }
       return null;
