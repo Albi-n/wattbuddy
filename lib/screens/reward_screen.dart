@@ -141,6 +141,7 @@ class _RewardsScreenState extends State<RewardsScreen> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(title, style: const TextStyle(color: Colors.white70)),
           const SizedBox(height: 6),

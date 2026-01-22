@@ -4,9 +4,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 
 import '../utils/responsive_scaffold.dart';
+import '../widgets/realtime_power_chart.dart';
+import '../widgets/sensor_data_widget.dart';
+import '../services/esp32_service.dart';
+import '../services/energy_data_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -57,7 +60,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
     final storedUser = prefs.getString('wattBuddyUser');
-    if (storedUser != null) {
+    if (storedUser != null && mounted) {
       final user = jsonDecode(storedUser);
       setState(() {
         username = user['username'] ?? 'User';
@@ -70,17 +73,118 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ---------------- LOAD ESP32 DATA ----------------
   Future<void> _loadEsp32Data() async {
     try {
-      final response = await http.get(
-        Uri.parse('http://192.168.233.214:4000/api/esp32/latest'),
-      );
-
-      if (response.statusCode == 200 && response.body.isNotEmpty) {
+      // Use fetchLiveData() for real-time readings from ESP32
+      final data = await Esp32Service.fetchLiveData();
+      if (mounted && data != null) {
         setState(() {
-          esp32Data = jsonDecode(response.body);
+          esp32Data = data;
         });
+        debugPrint('✅ ESP32 Data loaded: $data');
+
+        // Store the reading to database for historical analysis
+        final voltage = (data['voltage'] as num?)?.toDouble() ?? 220.0;
+        final current = (data['current'] as num?)?.toDouble() ?? 0.0;
+        final power = (data['power'] as num?)?.toDouble() ?? 0.0;
+        final energy = (data['energy'] as num?)?.toDouble() ?? 0.0;
+
+        await EnergyDataService.storeReading(
+          voltage: voltage,
+          current: current,
+          power: power,
+          energy: energy,
+        );
+
+        // Check for anomalies
+        final anomalyResult = await EnergyDataService.checkAnomalies(
+          voltage: voltage,
+          current: current,
+          power: power,
+        );
+
+        if (anomalyResult != null && anomalyResult['hasAnomalies'] == true) {
+          _showAnomalyNotifications(anomalyResult);
+        }
       }
     } catch (e) {
-      debugPrint('❌ ESP32 fetch error: \$e');
+      debugPrint('❌ ESP32 fetch error: $e');
+    }
+  }
+
+  // Show notifications for anomalies
+  void _showAnomalyNotifications(Map<String, dynamic> anomalyResult) {
+    final anomalies = anomalyResult['anomalies'] as List?;
+    final tips = anomalyResult['tips'] as List?;
+
+    if (anomalies != null && anomalies.isNotEmpty) {
+      for (final anomaly in anomalies) {
+        final message = anomaly['message'] ?? 'Unknown anomaly';
+        final severity = anomaly['severity'] ?? 'info';
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            duration: const Duration(seconds: 5),
+            backgroundColor: severity == 'critical'
+                ? Colors.red
+                : severity == 'warning'
+                    ? Colors.orange
+                    : Colors.blue,
+            action: SnackBarAction(
+              label: 'Dismiss',
+              onPressed: () {},
+            ),
+          ),
+        );
+      }
+
+      // Show tips in a bottom sheet
+      if (tips != null && tips.isNotEmpty) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            showModalBottomSheet(
+              context: context,
+              builder: (context) => Container(
+                padding: const EdgeInsets.all(20),
+                child: ListView(
+                  children: [
+                    const Text(
+                      '💡 Energy Saving Tips',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.cyan,
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    ...tips.map<Widget>((tip) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            border: Border.left(
+                              color: Colors.cyanAccent,
+                              width: 4,
+                            ),
+                            color: const Color(0xFF2A2A4A),
+                          ),
+                          child: Text(
+                            tip.toString(),
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ],
+                ),
+              ),
+            );
+          }
+        });
+      }
     }
   }
 
@@ -234,6 +338,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 );
               },
             ),
+
+            const SizedBox(height: 30),
+
+            // REAL-TIME CHART
+            const RealtimePowerChart(),
+
+            const SizedBox(height: 30),
+
+            // SENSOR DATA WIDGET
+            const SensorDataWidget(),
 
             const SizedBox(height: 30),
 

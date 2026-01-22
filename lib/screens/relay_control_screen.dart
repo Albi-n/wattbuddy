@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../services/api_service.dart';
+import '../services/esp32_service.dart';
 
 class RelayControlScreen extends StatefulWidget {
   const RelayControlScreen({super.key});
@@ -36,10 +37,11 @@ class _RelayControlScreenState extends State<RelayControlScreen> {
 
   Future<void> _fetchSensorData() async {
     try {
-      // This would need an endpoint on your ESP32
-      // For now, we'll fetch from the server
-      final data = await ApiService.get('/esp32/sensors/$_userId');
-      setState(() => _sensorData = data);
+      // Fetch live sensor data from ESP32
+      final data = await Esp32Service.fetchLiveData();
+      if (mounted && data != null) {
+        setState(() => _sensorData = data);
+      }
     } catch (e) {
       debugPrint('Error fetching sensor data: $e');
     }
@@ -47,9 +49,16 @@ class _RelayControlScreenState extends State<RelayControlScreen> {
 
   Future<void> _fetchRelayStatus() async {
     try {
-      final data = await ApiService.get('/relay/status/$_userId');
-      if (mounted) {
-        setState(() => _relayState = data['relayState'] ?? false);
+      final statusList = await ApiService.getAllRelayStatus();
+      if (mounted && statusList.isNotEmpty) {
+        // Get relay 1 status - convert integer to boolean
+        final relay1 = statusList.firstWhere(
+          (r) => r['relay_number'] == 1,
+          orElse: () => {'relay_number': 1, 'is_on': false}
+        );
+        final isOn = relay1['is_on'];
+        final relayState = isOn is bool ? isOn : (isOn == 1 || isOn == true);
+        setState(() => _relayState = relayState);
       }
     } catch (e) {
       debugPrint('Error fetching relay status: $e');

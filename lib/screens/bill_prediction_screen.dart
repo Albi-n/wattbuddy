@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../services/ml_prediction_service.dart';
 import '../services/enhanced_notification_service.dart';
+import '../services/esp32_service.dart';
 import '../utils/responsive_scaffold.dart';
 
 class BillPredictionScreen extends StatefulWidget {
@@ -62,8 +63,12 @@ class _BillPredictionScreenState extends State<BillPredictionScreen> {
         _predict30Days(),
       ], eagerError: false);
 
-      // Calculate current month bill (default values)
-      final currentUsage = 150.0; // Default value
+      // Get ACTUAL current usage from ESP32 live data
+      double currentUsage = 150.0; // Default fallback
+      final liveData = await Esp32Service.fetchLiveData();
+      if (liveData != null && liveData['energy'] != null) {
+        currentUsage = (liveData['energy'] as num).toDouble();
+      }
       final currentBill = _calculateBill(currentUsage);
 
       // Get 30-day predictions

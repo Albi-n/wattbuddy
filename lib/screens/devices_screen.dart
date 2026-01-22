@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 
 import '../services/api_service.dart';
@@ -38,11 +37,10 @@ class _DevicesScreenState extends State<DevicesScreen> {
   @override
   void initState() {
     super.initState();
-    _loadDeviceNames();
-    _loadRelayStatus();
-    // Auto-refresh every 3 seconds
-    _refreshTimer = Timer.periodic(Duration(seconds: 3), (_) {
-      _loadRelayStatus();
+    _loadDeviceConfig();
+    // Auto-refresh every 10 seconds
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      _loadDeviceConfig();
     });
   }
 
@@ -52,107 +50,134 @@ class _DevicesScreenState extends State<DevicesScreen> {
     super.dispose();
   }
 
-  Future<void> _loadDeviceNames() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      relay1Name = prefs.getString('relay1_name') ?? "Device 1";
-      relay2Name = prefs.getString('relay2_name') ?? "Device 2";
-    });
-    _loadDevices();
+  Future<void> _loadDeviceConfig() async {
+    setState(() => isLoading = true);
+    
+    try {
+      final config = await ApiService.getDeviceConfig();
+      final statusList = await ApiService.getAllRelayStatus();
+      
+      if (mounted) {
+        setState(() {
+          if (config['success'] == true && config['config'] != null) {
+            relay1Name = config['config']['relay1_name'] ?? 'Device 1';
+            relay2Name = config['config']['relay2_name'] ?? 'Device 2';
+          }
+          if (statusList.isNotEmpty) {
+            // Relay 1: convert integer to boolean
+            final relay1Data = statusList.firstWhere(
+              (r) => r['relay_number'] == 1,
+              orElse: () => {'relay_number': 1, 'is_on': 0}
+            );
+            final relay1IsOn = relay1Data['is_on'];
+            relay1Status = relay1IsOn is bool ? relay1IsOn : (relay1IsOn == 1);
+            
+            // Relay 2: convert integer to boolean
+            final relay2Data = statusList.firstWhere(
+              (r) => r['relay_number'] == 2,
+              orElse: () => {'relay_number': 2, 'is_on': 0}
+            );
+            final relay2IsOn = relay2Data['is_on'];
+            relay2Status = relay2IsOn is bool ? relay2IsOn : (relay2IsOn == 1);
+          }
+          isLoading = false;
+        });
+      }
+      debugPrint('✅ Device config loaded: Relay1=$relay1Status, Relay2=$relay2Status');
+    } catch (e) {
+      if (mounted) {
+        setState(() => isLoading = false);
+        _showErrorSnackBar('Failed to load device config: $e');
+      }
+      debugPrint('❌ Error loading device config: $e');
+    }
   }
 
-  Future<void> _loadDevices() async {
-    final prefs = await SharedPreferences.getInstance();
-    final deviceList = prefs.getStringList('device_list') ?? [];
-    setState(() {
-      devices = deviceList.map((d) {
-        final parts = d.split('|');
-        return {
-          'id': parts[0],
-          'name': parts[1],
-          'relay': int.parse(parts[2]),
-        };
-      }).toList();
-    });
+  Future<void> _toggleRelayWithConfirmation(int relayNumber) async {
+    final relayName = relayNumber == 1 ? relay1Name : relay2Name;
+    final currentState = relayNumber == 1 ? relay1Status : relay2Status;
+    
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Toggle $relayName'),
+        content: Text('Turn $relayName ${currentState ? 'OFF' : 'ON'}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => isControlling = true);
+      
+      final success = await ApiService.toggleRelay(relayNumber);
+      
+      setState(() => isControlling = false);
+      
+      if (success) {
+        _showSuccessSnackBar('$relayName toggled successfully');
+        _loadDeviceConfig(); // Refresh status
+      } else {
+        _showErrorSnackBar('Failed to toggle $relayName');
+      }
+    }
   }
 
-  Future<void> _saveDeviceNames() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('relay1_name', relay1Name);
-    await prefs.setString('relay2_name', relay2Name);
+  Future<void> _updateDeviceNames() async {
+    try {
+      final success = await ApiService.updateDeviceNames(relay1Name, relay2Name);
+      if (success) {
+        debugPrint('✅ Device names updated successfully');
+      } else {
+        if (mounted) {
+          _showErrorSnackBar('Failed to update device names');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackBar('Error updating device names: $e');
+      }
+      debugPrint('❌ Error updating device names: $e');
+    }
   }
 
-  Future<void> _addDevice(String name, int relay) async {
-    final prefs = await SharedPreferences.getInstance();
-    final devices = prefs.getStringList('device_list') ?? [];
-    final id = DateTime.now().millisecondsSinceEpoch.toString();
-    devices.add('$id|$name|$relay');
-    await prefs.setStringList('device_list', devices);
-    _loadDevices();
-    _showSuccessSnackBar("Device '$name' added successfully!");
-  }
-
-  Future<void> _removeDevice(String id) async {
-    final prefs = await SharedPreferences.getInstance();
-    var devices = prefs.getStringList('device_list') ?? [];
-    devices.removeWhere((d) => d.startsWith('$id|'));
-    await prefs.setStringList('device_list', devices);
-    _loadDevices();
-    _showSuccessSnackBar("Device removed!");
+  Future<void> _addDevice(String deviceName, int relayNumber) async {
+    try {
+      final names = {
+        'relay1Name': relayNumber == 1 ? deviceName : relay1Name,
+        'relay2Name': relayNumber == 2 ? deviceName : relay2Name,
+      };
+      
+      final success = await ApiService.updateDeviceNames(names['relay1Name']!, names['relay2Name']!);
+      if (success) {
+        setState(() {
+          if (relayNumber == 1) {
+            relay1Name = deviceName;
+          } else {
+            relay2Name = deviceName;
+          }
+        });
+        if (mounted) {
+          _showSuccessSnackBar('Device added successfully');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackBar('Failed to add device: $e');
+      }
+    }
   }
 
   Future<void> _loadRelayStatus() async {
-    setState(() => isLoading = true);
-
-    final status = await ApiService.getRelayStatus();
-
-    if (status.isNotEmpty) {
-      setState(() {
-        relay1Status = status['relay1'] ?? false;
-        relay2Status = status['relay2'] ?? false;
-        voltage = (status['voltage'] ?? 0).toDouble();
-        current = (status['current'] ?? 0).toDouble();
-        power = (status['power'] ?? 0).toDouble();
-        anomalyDetected = status['anomaly'] ?? false;
-        lastUpdate = DateTime.now();
-      });
-    }
-
-    setState(() => isLoading = false);
-  }
-
-  Future<void> _toggleRelay(int relayNumber) async {
-    setState(() => isControlling = true);
-
-    bool success = false;
-    bool newState = false;
-
-    if (relayNumber == 1) {
-      newState = !relay1Status;
-      success = await ApiService.controlRelay1(newState);
-    } else {
-      newState = !relay2Status;
-      success = await ApiService.controlRelay2(newState);
-    }
-
-    if (success) {
-      setState(() {
-        if (relayNumber == 1) {
-          relay1Status = newState;
-        } else {
-          relay2Status = newState;
-        }
-      });
-      _showSuccessSnackBar(
-        relayNumber == 1
-            ? "Relay 1 ${newState ? 'ON' : 'OFF'}"
-            : "Relay 2 ${newState ? 'ON' : 'OFF'}",
-      );
-    } else {
-      _showErrorSnackBar("Failed to control relay $relayNumber");
-    }
-
-    setState(() => isControlling = false);
+    await _loadDeviceConfig();
   }
 
   Future<void> _editDeviceName(int relayNumber) async {
@@ -196,7 +221,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                   relay2Name = nameController.text;
                 }
               });
-              _saveDeviceNames();
+              _updateDeviceNames();
               Navigator.pop(context);
               _showSuccessSnackBar("Device name updated");
             },
@@ -477,14 +502,10 @@ class _DevicesScreenState extends State<DevicesScreen> {
                                 ),
                               ],
                             ),
-                            IconButton(
-                              icon: Icon(Icons.delete, color: Colors.red, size: 18),
-                              onPressed: () => _removeDevice(device['id']),
-                            ),
                           ],
                         ),
                       );
-                    }).toList(),
+                    }),
                     SizedBox(height: 20),
                   ],
                 ),
@@ -500,84 +521,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
               ),
               SizedBox(height: 12),
 
-              if (!isLoading)
-                Container(
-                  padding: EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Color(0xFF1A1A3A),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Color(0xFF00D4FF), width: 1),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "Live Sensor Data",
-                            style: TextStyle(
-                              color: Color(0xFF00D4FF),
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: _loadRelayStatus,
-                            child: Icon(Icons.refresh,
-                                color: Color(0xFF00D4FF), size: 20),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _buildSensorMetric("Voltage", "$voltage V",
-                              Icons.electric_bolt, Color(0xFF00D4FF)),
-                          _buildSensorMetric(
-                              "Current",
-                              "$current A",
-                              Icons.flash_on,
-                              Color(0xFFFF6B6B)),
-                          _buildSensorMetric("Power", "$power W",
-                              Icons.power_settings_new, Color(0xFF4ECDC4)),
-                        ],
-                      ),
-                      SizedBox(height: 12),
-                      if (anomalyDetected)
-                        Container(
-                          padding: EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.red, width: 1),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.warning_rounded,
-                                  color: Colors.red, size: 16),
-                              SizedBox(width: 8),
-                              Text(
-                                "⚠️ Anomaly Detected!",
-                                style: TextStyle(
-                                  color: Colors.red,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      SizedBox(height: 8),
-                      Text(
-                        "Last updated: ${lastUpdate.hour}:${lastUpdate.minute.toString().padLeft(2, '0')}",
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-
-              SizedBox(height: 30),
+              SizedBox(height: 20),
 
               // Relay 1 Control Card
               _buildRelayCard(
@@ -780,7 +724,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 ],
               ),
               GestureDetector(
-                onTap: isControlling ? null : () => _toggleRelay(relayNumber),
+                onTap: isControlling ? null : () => _toggleRelayWithConfirmation(relayNumber),
                 child: Container(
                   width: 70,
                   height: 70,

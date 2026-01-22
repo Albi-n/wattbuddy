@@ -1,11 +1,33 @@
-// 🗄 FEATURE 2: Store ESP32 Data in PostgreSQL
+// 🗄 FEATURE 2: Store ESP32 Data in PostgreSQL (User-Isolated)
 const db = require('../db');
 const PowerLimitService = require('./powerLimitService');
 
 class ESP32StorageService {
-  // Store ESP32 reading in database
+  // Validate user exists before storing data
+  static async validateUser(userId) {
+    try {
+      const result = await db.query(
+        'SELECT id FROM users WHERE id = $1',
+        [userId]
+      );
+
+      if (result.rows.length === 0) {
+        throw new Error(`User ${userId} not found`);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('❌ Error validating user:', error);
+      throw error;
+    }
+  }
+
+  // Store ESP32 reading in database (user-isolated)
   static async storeReading(userId, reading) {
     try {
+      // Validate user exists
+      await this.validateUser(userId);
+
       // Extract data from ESP32
       const {
         power,
@@ -18,20 +40,30 @@ class ESP32StorageService {
         timestamp = new Date()
       } = reading;
 
-      // Insert into energy_readings table
+      // Validate required fields
+      if (power === undefined || power === null) {
+        throw new Error('Power value is required');
+      }
+
+      // Insert into energy_readings table (only for this user)
       const result = await db.query(
         `INSERT INTO energy_readings 
          (user_id, power_consumption, voltage, current, energy, power_factor, frequency, temperature, recorded_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING *`,
-        [userId, power, voltage, current, energy, pf, frequency, temperature, timestamp]
+        [userId, power, voltage || 0, current || 0, energy || 0, pf || 0, frequency || 0, temperature || 0, timestamp]
       );
 
-      console.log(`✅ ESP32 reading stored for user ${userId}`);
+      console.log(`✅ ESP32 reading stored for user ${userId}: P=${power}W V=${voltage}V I=${current}A`);
 
       // Check power limit and send notifications
-      const settings = await PowerLimitService.getPowerLimitSettings(userId);
-      await PowerLimitService.checkPowerLimit(userId, power, settings.daily_power_limit);
+      try {
+        const settings = await PowerLimitService.getPowerLimitSettings(userId);
+        await PowerLimitService.checkPowerLimit(userId, power, settings.daily_power_limit);
+      } catch (powerError) {
+        console.error('⚠️ Power limit check failed:', powerError.message);
+        // Don't fail the main operation
+      }
 
       return result.rows[0];
     } catch (error) {
@@ -40,9 +72,11 @@ class ESP32StorageService {
     }
   }
 
-  // Get latest readings for graph/dashboard
+  // Get latest readings for graph/dashboard (user-specific)
   static async getLatestReadings(userId, limit = 100) {
     try {
+      await this.validateUser(userId);
+
       const result = await db.query(
         `SELECT * FROM energy_readings
          WHERE user_id = $1
@@ -58,9 +92,11 @@ class ESP32StorageService {
     }
   }
 
-  // Get readings for specific time range
+  // Get readings for specific time range (user-specific)
   static async getReadingsByTimeRange(userId, startTime, endTime) {
     try {
+      await this.validateUser(userId);
+
       const result = await db.query(
         `SELECT * FROM energy_readings
          WHERE user_id = $1 AND recorded_at >= $2 AND recorded_at <= $3
@@ -75,9 +111,11 @@ class ESP32StorageService {
     }
   }
 
-  // Get hourly statistics
+  // Get hourly statistics (user-specific)
   static async getHourlyStats(userId, date) {
     try {
+      await this.validateUser(userId);
+
       const result = await db.query(
         `SELECT 
            DATE_TRUNC('hour', recorded_at) as hour,
@@ -100,9 +138,11 @@ class ESP32StorageService {
     }
   }
 
-  // Get daily summary
+  // Get daily summary (user-specific)
   static async getDailySummary(userId, date) {
     try {
+      await this.validateUser(userId);
+
       const result = await db.query(
         `SELECT 
            DATE(recorded_at) as date,
@@ -122,6 +162,43 @@ class ESP32StorageService {
       return result.rows[0] || null;
     } catch (error) {
       console.error('❌ Error fetching daily summary:', error);
+      throw error;
+    }
+  }
+
+  // Get user's latest single reading
+  static async getLatestReading(userId) {
+    try {
+      await this.validateUser(userId);
+
+      const result = await db.query(
+        `SELECT * FROM energy_readings
+         WHERE user_id = $1
+         ORDER BY recorded_at DESC
+         LIMIT 1`,
+        [userId]
+      );
+
+      return result.rows[0] || null;
+    } catch (error) {
+      console.error('❌ Error fetching latest reading:', error);
+      throw error;
+    }
+  }
+
+  // Get reading count for user
+  static async getReadingCount(userId) {
+    try {
+      await this.validateUser(userId);
+
+      const result = await db.query(
+        'SELECT COUNT(*) as count FROM energy_readings WHERE user_id = $1',
+        [userId]
+      );
+
+      return parseInt(result.rows[0].count);
+    } catch (error) {
+      console.error('❌ Error getting reading count:', error);
       throw error;
     }
   }

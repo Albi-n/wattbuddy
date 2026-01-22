@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 // import 'package:firebase_core/firebase_core.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'services/notification_service.dart';
 import 'services/enhanced_notification_service.dart';
+import 'services/api_service.dart';
 import 'screens/login_register.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/profile_screen.dart';
@@ -16,6 +19,22 @@ Future<void> main() async {
   // await Firebase.initializeApp();
   await NotificationService.initialize();
   await EnhancedNotificationService.initialize();
+  
+  // Restore userId from SharedPreferences if user was previously logged in
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final userJson = prefs.getString('wattBuddyUser');
+    if (userJson != null) {
+      final user = jsonDecode(userJson);
+      if (user['id'] != null) {
+        ApiService.setUserId(user['id'].toString());
+        debugPrint('✅ User ID restored from storage: ${user['id']}');
+      }
+    }
+  } catch (e) {
+    debugPrint('⚠️ Error restoring userId: $e');
+  }
+  
   runApp(const WattBuddyApp());
 }
 

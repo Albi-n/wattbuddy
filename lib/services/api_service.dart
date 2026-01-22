@@ -5,6 +5,16 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
+  // Store userId globally for all API calls
+  static String? _userId;
+
+  static String? get userId => _userId;
+
+  static void setUserId(String id) {
+    _userId = id;
+    debugPrint('✅ User ID set: $id');
+  }
+
   // Use emulator host so Android emulator can reach the local server
   static String get baseUrl {
     if (kIsWeb) {
@@ -25,18 +35,25 @@ class ApiService {
   // Connection timeout - increase from 10 to 30 seconds to allow for database operations
   static const Duration connectionTimeout = Duration(seconds: 30);
 
-  // ============ GENERIC HTTP METHODS ============
-  /// Generic POST request
+  // Generic POST request with userId
   static Future<Map<String, dynamic>> post(
     String endpoint,
     Map<String, dynamic> body,
   ) async {
     try {
+      // Add userId if not already in body
+      if (_userId != null && !body.containsKey('userId')) {
+        body['userId'] = _userId;
+      }
+
       debugPrint('📤 POST $endpoint: $body');
       final response = await http
           .post(
             Uri.parse('$baseUrl$endpoint'),
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              if (_userId != null) 'x-user-id': _userId!,
+            },
             body: jsonEncode(body),
           )
           .timeout(connectionTimeout);
@@ -49,14 +66,17 @@ class ApiService {
     }
   }
 
-  /// Generic GET request
+  /// Generic GET request with userId
   static Future<Map<String, dynamic>> get(String endpoint) async {
     try {
       debugPrint('📤 GET $endpoint');
       final response = await http
           .get(
             Uri.parse('$baseUrl$endpoint'),
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              if (_userId != null) 'x-user-id': _userId!,
+            },
           )
           .timeout(connectionTimeout);
       debugPrint('📥 Response: ${response.statusCode}');
@@ -144,7 +164,12 @@ class ApiService {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('token', data['token']);
         await prefs.setString('wattBuddyUser', jsonEncode(data['user']));
-        debugPrint('✅ Login successful');
+        
+        // Store userId globally for all subsequent API calls
+        if (data['user'] != null && data['user']['id'] != null) {
+          setUserId(data['user']['id'].toString());
+          debugPrint('✅ Login successful, userId stored');
+        }
         return true;
       }
 
@@ -393,6 +418,144 @@ class ApiService {
     } catch (e) {
       debugPrint('❌ ESP32 energy error: $e');
       return {'success': false};
+    }
+  }
+
+  // ============ DEVICE CONTROL ENDPOINTS ============
+  /// Get device configuration for logged-in user
+  static Future<Map<String, dynamic>> getDeviceConfig() async {
+    try {
+      if (_userId == null) throw Exception('User not authenticated');
+      
+      debugPrint('📱 Fetching device config for user $_userId');
+      final response = await get('/devices/config/$_userId');
+      return response;
+    } catch (e) {
+      debugPrint('❌ Get device config error: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Update device names
+  static Future<bool> updateDeviceNames(String relay1Name, String relay2Name) async {
+    try {
+      if (_userId == null) throw Exception('User not authenticated');
+      
+      debugPrint('📝 Updating device names: Relay1=$relay1Name, Relay2=$relay2Name');
+      final response = await post('/devices/config', {
+        'userId': _userId,
+        'relay1Name': relay1Name,
+        'relay2Name': relay2Name,
+      });
+
+      return response['success'] ?? false;
+    } catch (e) {
+      debugPrint('❌ Update device names error: $e');
+      return false;
+    }
+  }
+
+  /// Get all relay status for user
+  static Future<List<Map<String, dynamic>>> getAllRelayStatus() async {
+    try {
+      if (_userId == null) throw Exception('User not authenticated');
+      
+      debugPrint('🔌 Fetching all relay status for user $_userId');
+      final response = await get('/devices/relay/status/$_userId');
+      
+      if (response['success'] == true && response['relayStatus'] is List) {
+        return List<Map<String, dynamic>>.from(response['relayStatus']);
+      }
+      return [];
+    } catch (e) {
+      debugPrint('❌ Get relay status error: $e');
+      return [];
+    }
+  }
+
+  /// Get specific relay status
+  static Future<Map<String, dynamic>> getRelayStatusForRelay(int relayNumber) async {
+    try {
+      if (_userId == null) throw Exception('User not authenticated');
+      
+      debugPrint('🔌 Fetching relay $relayNumber status for user $_userId');
+      final response = await get('/devices/relay/status/$_userId/$relayNumber');
+      return response;
+    } catch (e) {
+      debugPrint('❌ Get relay $relayNumber status error: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Toggle specific relay
+  static Future<bool> toggleRelay(int relayNumber) async {
+    try {
+      if (_userId == null) throw Exception('User not authenticated');
+      
+      debugPrint('🔌 Toggling relay $relayNumber for user $_userId');
+      final response = await post('/devices/relay/toggle', {
+        'userId': _userId,
+        'relayNumber': relayNumber,
+      });
+
+      return response['success'] ?? false;
+    } catch (e) {
+      debugPrint('❌ Toggle relay $relayNumber error: $e');
+      return false;
+    }
+  }
+
+  /// Turn relay ON
+  static Future<bool> turnRelayOn(int relayNumber) async {
+    try {
+      if (_userId == null) throw Exception('User not authenticated');
+      
+      debugPrint('🔌 Turning relay $relayNumber ON for user $_userId');
+      final response = await post('/devices/relay/on', {
+        'userId': _userId,
+        'relayNumber': relayNumber,
+      });
+
+      return response['success'] ?? false;
+    } catch (e) {
+      debugPrint('❌ Turn relay $relayNumber ON error: $e');
+      return false;
+    }
+  }
+
+  /// Turn relay OFF
+  static Future<bool> turnRelayOff(int relayNumber) async {
+    try {
+      if (_userId == null) throw Exception('User not authenticated');
+      
+      debugPrint('🔌 Turning relay $relayNumber OFF for user $_userId');
+      final response = await post('/devices/relay/off', {
+        'userId': _userId,
+        'relayNumber': relayNumber,
+      });
+
+      return response['success'] ?? false;
+    } catch (e) {
+      debugPrint('❌ Turn relay $relayNumber OFF error: $e');
+      return false;
+    }
+  }
+
+  /// Get device control history
+  static Future<List<Map<String, dynamic>>> getDeviceControlHistory({int limit = 50}) async {
+    try {
+      if (_userId == null) throw Exception('User not authenticated');
+      
+      debugPrint('📋 Fetching device control history for user $_userId');
+      final response = await get('/devices/history/$_userId?limit=$limit');
+      
+      if (response['success'] == true && response['history'] is List) {
+        return List<Map<String, dynamic>>.from(response['history']);
+      }
+      return [];
+    } catch (e) {
+      debugPrint('❌ Get device control history error: $e');
+      return [];
     }
   }
 

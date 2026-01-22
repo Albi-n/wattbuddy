@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
@@ -74,6 +76,15 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
     _showSnack(res['message']);
 
     if (res['message'] == 'Registration successful') {
+      // Store userId if available in response
+      if (res['user'] != null && res['user']['id'] != null) {
+        try {
+          ApiService.setUserId(res['user']['id'].toString());
+          debugPrint('✅ Global userId set: ${res['user']['id']}');
+        } catch (e) {
+          debugPrint('❌ Error setting userId: $e');
+        }
+      }
       showForm(0); // go to login
     }
   }
@@ -97,6 +108,21 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
     if (!mounted) return;
 
     if (success) {
+      // Store userId globally for all API calls
+      final prefs = await SharedPreferences.getInstance();
+      final userJson = prefs.getString('wattBuddyUser');
+      if (userJson != null) {
+        try {
+          final user = jsonDecode(userJson);
+          if (user['id'] != null) {
+            ApiService.setUserId(user['id'].toString());
+            debugPrint('✅ Global userId set: ${user['id']}');
+          }
+        } catch (e) {
+          debugPrint('❌ Error parsing user data: $e');
+        }
+      }
+      
       Navigator.pushReplacementNamed(context, '/dashboard');
     } else {
       _showSnack("Invalid credentials");

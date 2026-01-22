@@ -1,6 +1,7 @@
 const pool = require('../db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const DeviceConfigService = require('../services/deviceConfigService');
 
 
 
@@ -24,8 +25,8 @@ exports.registerUser = async (req, res) => {
     // 1. Check if user already exists (with timeout)
     const userCheck = await Promise.race([
       pool.query(
-        'SELECT * FROM users WHERE email = $1 OR consumer_number = $2',
-        [email, consumer_number]
+        'SELECT * FROM users WHERE email = $1 OR consumer_number = $2 OR username = $3',
+        [email, consumer_number, username]
       ),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Database timeout while checking user')), 10000)
@@ -34,7 +35,16 @@ exports.registerUser = async (req, res) => {
 
     if (userCheck.rows.length > 0) {
       console.warn("⚠️ User already exists:", email);
-      return res.status(400).json({ message: 'User already exists' });
+      const existingUser = userCheck.rows[0];
+      let duplicateField = '';
+      if (existingUser.email === email) duplicateField = 'email';
+      if (existingUser.consumer_number === consumer_number) duplicateField = 'consumer_number';
+      if (existingUser.username === username) duplicateField = 'username';
+      
+      return res.status(400).json({ 
+        message: `User already exists with this ${duplicateField}`,
+        duplicateField 
+      });
     }
 
     console.log("✅ User does not exist, proceeding with registration");
@@ -45,9 +55,9 @@ exports.registerUser = async (req, res) => {
 
     // 3. Insert user (with timeout)
     console.log("💾 Inserting user into database...");
-    await Promise.race([
+    const insertResult = await Promise.race([
       pool.query(
-        'INSERT INTO users (username, email, consumer_number, password) VALUES ($1, $2, $3, $4)',
+        'INSERT INTO users (username, email, consumer_number, password) VALUES ($1, $2, $3, $4) RETURNING id, username, email, consumer_number',
         [username, email, consumer_number, hashedPassword]
       ),
       new Promise((_, reject) =>
@@ -55,8 +65,29 @@ exports.registerUser = async (req, res) => {
       )
     ]);
 
+    const newUser = insertResult.rows[0];
+    console.log("✅ User inserted, initializing device configs...");
+
+    // 4. Initialize device configuration
+    try {
+      await DeviceConfigService.initializeDeviceConfig(newUser.id);
+      await DeviceConfigService.initializeAllRelays(newUser.id);
+      console.log("✅ Device configuration initialized for user:", newUser.id);
+    } catch (deviceError) {
+      console.error("⚠️ Warning: Could not initialize device config:", deviceError.message);
+      // Don't fail registration if device config fails
+    }
+
     console.log("✅ Registration successful for user:", email);
-    res.status(201).json({ message: 'Registration successful' });
+    res.status(201).json({ 
+      message: 'Registration successful',
+      user: {
+        id: newUser.id,
+        username: newUser.username,
+        email: newUser.email,
+        consumer_number: newUser.consumer_number
+      }
+    });
 
   } catch (err) {
     console.error("❌ Registration error:", err.message);
@@ -156,6 +187,7 @@ exports.loginUser = async (req, res) => {
       message: 'Login successful',
       token,
       user: {
+        id: user.id,
         username: user.username,
         email: user.email,
         consumer_number: user.consumer_number
