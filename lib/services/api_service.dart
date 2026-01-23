@@ -241,8 +241,11 @@ class ApiService {
         'http://wattbuddy.local:80/api/readings',     // mDNS fallback
       ];
       
+      int attemptNum = 0;
       for (final esp32Url in esp32Urls) {
+        attemptNum++;
         try {
+          debugPrint('🔍 ESP32 attempt $attemptNum/${esp32Urls.length}: $esp32Url');
           final response = await http
               .get(
                 Uri.parse(esp32Url),
@@ -252,7 +255,7 @@ class ApiService {
 
           if (response.statusCode == 200) {
             final data = jsonDecode(response.body);
-            debugPrint('✅ ESP32 Sensors from $esp32Url: $data');
+            debugPrint('✅ ESP32 SUCCESS at $esp32Url: $data');
             return {
               'success': true,
               'voltage': (data['voltage'] ?? 220.0).toDouble(),
@@ -265,13 +268,13 @@ class ApiService {
             };
           }
         } catch (e) {
-          debugPrint('⚠️ ESP32 URL $esp32Url failed: $e');
+          debugPrint('❌ Attempt $attemptNum FAILED - $esp32Url: $e');
           continue; // Try next URL
         }
       }
       
       // If all ESP32 URLs fail, try to get data from server API
-      debugPrint('📡 All ESP32 IPs failed, trying server API...');
+      debugPrint('📡 All $attemptNum ESP32 IPs failed, trying server API...');
       try {
         final serverData = await get('/esp32/latest');
         if (serverData['success'] == true) {
@@ -566,6 +569,45 @@ class ApiService {
       debugPrint('❌ ESP32 energy error: $e');
       return {'success': false};
     }
+  }
+
+  /// Diagnose ESP32 connectivity - tests all possible IP addresses
+  static Future<String> diagnoseESP32Connectivity() async {
+    debugPrint('🔍 Starting ESP32 connectivity diagnosis...');
+    List<String> results = ['=== ESP32 CONNECTIVITY DIAGNOSIS ==='];
+    
+    const List<String> esp32Ips = [
+      '10.168.130.214',  // OPPO F15 primary
+      '192.168.1.100',   // Secondary
+      '192.168.0.100',   // Tertiary
+      'wattbuddy.local', // mDNS
+    ];
+    
+    for (final ip in esp32Ips) {
+      final url = 'http://$ip:80/api/readings';
+      try {
+        debugPrint('⏱️ Testing: $ip...');
+        final sw = Stopwatch()..start();
+        final response = await http
+            .get(Uri.parse(url), headers: {'Content-Type': 'application/json'})
+            .timeout(const Duration(seconds: 3));
+        sw.stop();
+        
+        if (response.statusCode == 200) {
+          results.add('✅ $ip - SUCCESS (${sw.elapsedMilliseconds}ms)');
+          final data = jsonDecode(response.body);
+          results.add('   Data: $data');
+        } else {
+          results.add('⚠️ $ip - HTTP ${response.statusCode} (${sw.elapsedMilliseconds}ms)');
+        }
+      } catch (e) {
+        results.add('❌ $ip - $e');
+      }
+    }
+    
+    final diagReport = results.join('\n');
+    debugPrint(diagReport);
+    return diagReport;
   }
 
 }
