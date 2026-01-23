@@ -235,9 +235,10 @@ class ApiService {
       
       // Try multiple ESP32 addresses with fallback
       const List<String> esp32Urls = [
-        'http://10.168.130.214:80/api/readings',      // Primary (local network)
-        'http://192.168.1.100:80/api/readings',       // Secondary fallback
-        'http://192.168.0.100:80/api/readings',       // Tertiary fallback
+        'http://192.168.198.203:80/api/readings',     // Primary (actual ESP32 IP)
+        'http://10.168.130.214:80/api/readings',      // Secondary fallback
+        'http://192.168.1.100:80/api/readings',       // Tertiary fallback
+        'http://192.168.0.100:80/api/readings',       // Quaternary fallback
         'http://wattbuddy.local:80/api/readings',     // mDNS fallback
       ];
       
@@ -305,6 +306,7 @@ class ApiService {
     try {
       debugPrint('🔌 Turning ESP32 Relay 1 ON...');
       const List<String> urls = [
+        'http://192.168.198.203:80/api/relay1/on',
         'http://10.168.130.214:80/api/relay1/on',
         'http://192.168.1.100:80/api/relay1/on',
         'http://wattbuddy.local:80/api/relay1/on',
@@ -340,6 +342,7 @@ class ApiService {
     try {
       debugPrint('🔌 Turning ESP32 Relay 1 OFF...');
       const List<String> urls = [
+        'http://192.168.198.203:80/api/relay1/off',
         'http://10.168.130.214:80/api/relay1/off',
         'http://192.168.1.100:80/api/relay1/off',
         'http://wattbuddy.local:80/api/relay1/off',
@@ -375,6 +378,7 @@ class ApiService {
     try {
       debugPrint('🔌 Turning ESP32 Relay 2 ON...');
       const List<String> urls = [
+        'http://192.168.198.203:80/api/relay2/on',
         'http://10.168.130.214:80/api/relay2/on',
         'http://192.168.1.100:80/api/relay2/on',
         'http://wattbuddy.local:80/api/relay2/on',
@@ -410,6 +414,7 @@ class ApiService {
     try {
       debugPrint('🔌 Turning ESP32 Relay 2 OFF...');
       const List<String> urls = [
+        'http://192.168.198.203:80/api/relay2/off',
         'http://10.168.130.214:80/api/relay2/off',
         'http://192.168.1.100:80/api/relay2/off',
         'http://wattbuddy.local:80/api/relay2/off',
@@ -577,10 +582,11 @@ class ApiService {
     List<String> results = ['=== ESP32 CONNECTIVITY DIAGNOSIS ==='];
     
     const List<String> esp32Ips = [
-      '10.168.130.214',  // OPPO F15 primary
-      '192.168.1.100',   // Secondary
-      '192.168.0.100',   // Tertiary
-      'wattbuddy.local', // mDNS
+      '192.168.198.203',  // Primary (actual ESP32 IP)
+      '10.168.130.214',   // Secondary fallback
+      '192.168.1.100',    // Tertiary
+      '192.168.0.100',    // Quaternary
+      'wattbuddy.local',  // mDNS
     ];
     
     for (final ip in esp32Ips) {
