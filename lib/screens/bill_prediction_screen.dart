@@ -789,45 +789,44 @@ class _BillPredictionScreenState extends State<BillPredictionScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // Live Chart
-                if (_liveChartData.isNotEmpty)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '⚡ Live Power Consumption',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                // Live Chart - Always show, even if loading
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '⚡ Live Power Consumption',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildLiveChartWidget(),
+                    const SizedBox(height: 16),
+                    // Live stats
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildLiveStatCard(
+                          '⚡ Power',
+                          '${_currentPower.toStringAsFixed(2)} W',
+                          Colors.blue,
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      _buildLiveChartWidget(),
-                      const SizedBox(height: 16),
-                      // Live stats
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _buildLiveStatCard(
-                            '⚡ Power',
-                            '${_currentPower.toStringAsFixed(2)} W',
-                            Colors.blue,
-                          ),
-                          _buildLiveStatCard(
-                            '🔌 Voltage',
-                            '${_currentVoltage.toStringAsFixed(0)} V',
-                            Colors.green,
-                          ),
-                          _buildLiveStatCard(
-                            '📊 Current',
-                            '${_currentCurrent.toStringAsFixed(2)} A',
-                            Colors.orange,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                        _buildLiveStatCard(
+                          '🔌 Voltage',
+                          '${_currentVoltage.toStringAsFixed(0)} V',
+                          Colors.green,
+                        ),
+                        _buildLiveStatCard(
+                          '📊 Current',
+                          '${_currentCurrent.toStringAsFixed(2)} A',
+                          Colors.orange,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 20),
               ],
             ),
