@@ -628,9 +628,43 @@ class _BillPredictionScreenState extends State<BillPredictionScreen> {
                         color: Colors.white,
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.refresh, color: Colors.white),
-                      onPressed: _fetchBillPredictionData,
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.router, color: Colors.cyan),
+                          tooltip: 'Test ESP32 Connection',
+                          onPressed: () async {
+                            final result = await ApiService.diagnoseESP32Connectivity();
+                            if (context.mounted) {
+                              showDialog(
+                                context: context,
+                                builder: (_) => AlertDialog(
+                                  title: const Text('🔍 ESP32 Diagnostics'),
+                                  content: SingleChildScrollView(
+                                    child: Text(
+                                      result,
+                                      style: const TextStyle(
+                                        fontFamily: 'Courier',
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text('Close'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.refresh, color: Colors.white),
+                          onPressed: _fetchBillPredictionData,
+                        ),
+                      ],
                     ),
                   ],
                 ),
