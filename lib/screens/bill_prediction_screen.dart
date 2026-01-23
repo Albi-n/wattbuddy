@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:fl_chart/fl_chart.dart';
+import '../services/api_service.dart';
 import '../services/ml_prediction_service.dart';
 import '../services/enhanced_notification_service.dart';
 import '../utils/responsive_scaffold.dart';
