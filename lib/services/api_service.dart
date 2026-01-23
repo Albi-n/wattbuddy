@@ -276,7 +276,7 @@ class ApiService {
       // If all ESP32 URLs fail, try to get data from server API
       debugPrint('📡 All $attemptNum ESP32 IPs failed, trying server API...');
       try {
-        final serverData = await get('/esp32/latest');
+        final serverData = await get('/energy/latest');
         if (serverData['success'] == true) {
           debugPrint('✅ Got ESP32 data from server API');
           return {

@@ -104,12 +104,14 @@ class _DevicesScreenState extends State<DevicesScreen> {
   }
 
   Future<void> _loadRelayStatus() async {
+    if (!mounted) return;
     setState(() => isLoading = true);
 
     try {
       final status = await ApiService.getRelayStatus();
 
       if (status.isNotEmpty && status['success'] != false) {
+        if (!mounted) return;
         setState(() {
           relay1Status = status['relay1'] ?? false;
           relay2Status = status['relay2'] ?? false;
@@ -129,6 +131,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
       await _loadESP32SensorData();
     }
 
+    if (!mounted) return;
     setState(() => isLoading = false);
   }
 
@@ -137,6 +140,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
       debugPrint('📊 Fetching sensor data from ESP32...');
       final sensorData = await ApiService.getESP32Sensors();
       
+      if (!mounted) return;
       if (sensorData['success'] == true && sensorData.containsKey('voltage')) {
         setState(() {
           voltage = (sensorData['voltage'] ?? 0).toDouble();
