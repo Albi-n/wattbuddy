@@ -28,13 +28,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final List<double> monthlyUsage = [110, 130, 145, 140, 155, 135, 124];
   final List<String> months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'];
 
-  final List<Map<String, dynamic>> recentBills = [
-    {'period': "Oct-Nov '25", 'amount': 925.50, 'status': 'paid'},
-    {'period': "Sep-Oct '25", 'amount': 870.50, 'status': 'due'},
-    {'period': "Aug-Sep '25", 'amount': 795.00, 'status': 'paid'},
-    {'period': "Jul-Aug '25", 'amount': 910.20, 'status': 'paid'},
-    {'period': "Jun-Jul '25", 'amount': 850.75, 'status': 'paid'},
-  ];
+
 
   // ---------------- INIT ----------------
   @override
@@ -237,7 +231,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             const SizedBox(height: 30),
 
-            // CHART + BILLS (UNCHANGED)
+            // CHART + LIVE DATA
             LayoutBuilder(
               builder: (context, constraints) {
                 if (constraints.maxWidth < 900) {
@@ -245,7 +239,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     children: [
                       _usageChart(),
                       const SizedBox(height: 20),
-                      _recentBillsCard(),
+                      _liveDataCard(),
                     ],
                   );
                 } else {
@@ -254,7 +248,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     children: [
                       Expanded(flex: 2, child: _usageChart()),
                       const SizedBox(width: 20),
-                      Expanded(child: _recentBillsCard()),
+                      Expanded(child: _liveDataCard()),
                     ],
                   );
                 }
@@ -398,8 +392,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ------------------ RECENT BILLS (UNCHANGED) ------------------
-  Widget _recentBillsCard() {
+  // ==================== LIVE ESP32 DATA CARD ====================
+  Widget _liveDataCard() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -411,37 +405,76 @@ class _DashboardScreenState extends State<DashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            "Recent Bills",
+            "📊 Live Data",
             style: TextStyle(
               color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 10),
-          ...recentBills.map((bill) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(bill['period'],
-                      style: const TextStyle(color: Colors.white70)),
-                  Text(
-                    "₹\${bill['amount']}",
-                    style: TextStyle(
-                      color: bill['status'] == 'paid'
-                          ? Colors.green
-                          : Colors.orange,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+          const SizedBox(height: 16),
+          if (esp32Data != null && esp32Data!.isNotEmpty)
+            Column(
+              children: [
+                _buildLiveMetricRow(
+                  "⚡ Voltage",
+                  "${(esp32Data!['voltage'] ?? 0).toStringAsFixed(1)} V",
+                  Colors.cyanAccent,
+                ),
+                const SizedBox(height: 12),
+                _buildLiveMetricRow(
+                  "🔌 Current",
+                  "${(esp32Data!['current'] ?? 0).toStringAsFixed(2)} A",
+                  Colors.greenAccent,
+                ),
+                const SizedBox(height: 12),
+                _buildLiveMetricRow(
+                  "⚙️ Power",
+                  "${(esp32Data!['power'] ?? 0).toStringAsFixed(1)} W",
+                  Colors.orangeAccent,
+                ),
+                const SizedBox(height: 12),
+                _buildLiveMetricRow(
+                  "📈 Daily Energy",
+                  "${(esp32Data!['daily_energy'] ?? 0).toStringAsFixed(2)} kWh",
+                  Colors.blueAccent,
+                ),
+              ],
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: const Center(
+                child: Text(
+                  "Waiting for ESP32 data...",
+                  style: TextStyle(color: Colors.white70),
+                ),
               ),
-            );
-          }),
+            ),
         ],
       ),
     );
   }
+
+  Widget _buildLiveMetricRow(String label, String value, Color color) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white70, fontSize: 14),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+      ],
+    );
+  }
 }
+
+

@@ -228,40 +228,212 @@ class ApiService {
   // ============ ESP32 SENSOR ENDPOINTS ============
   
   /// Get current sensor readings from ESP32
-  /// Reads: Voltage, Current, Power, Daily/Monthly Energy
+  /// Reads: Voltage, Current, Power, Energy, Relay Status
   static Future<Map<String, dynamic>> getESP32Sensors() async {
     try {
       debugPrint('📊 Fetching ESP32 sensor readings...');
       
-      // Direct connection to ESP32 (local network)
-      const String esp32Url = 'http://10.168.130.214:80/sensors';
+      // Try multiple ESP32 addresses with fallback
+      const List<String> esp32Urls = [
+        'http://10.168.130.214:80/api/readings',      // Primary (local network)
+        'http://192.168.1.100:80/api/readings',       // Secondary fallback
+        'http://192.168.0.100:80/api/readings',       // Tertiary fallback
+        'http://wattbuddy.local:80/api/readings',     // mDNS fallback
+      ];
       
-      final response = await http
-          .get(
-            Uri.parse(esp32Url),
-            headers: {'Content-Type': 'application/json'},
-          )
-          .timeout(const Duration(seconds: 10));
+      for (final esp32Url in esp32Urls) {
+        try {
+          final response = await http
+              .get(
+                Uri.parse(esp32Url),
+                headers: {'Content-Type': 'application/json'},
+              )
+              .timeout(const Duration(seconds: 5));
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        debugPrint('✅ ESP32 Sensors: $data');
-        return {
-          'success': true,
-          'voltage': data['voltage'] ?? 0.0,
-          'current': data['current'] ?? 0.0,
-          'power': data['power'] ?? 0.0,
-          'relay': data['relay'] ?? false,
-          'totalEnergy': data['totalEnergy'] ?? 0.0,
-          'dailyEnergy': data['dailyEnergy'] ?? 0.0,
-          'monthlyEnergy': data['monthlyEnergy'] ?? 0.0,
-          'timestamp': data['timestamp'] ?? 0,
-        };
+          if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            debugPrint('✅ ESP32 Sensors from $esp32Url: $data');
+            return {
+              'success': true,
+              'voltage': (data['voltage'] ?? 220.0).toDouble(),
+              'current': (data['current'] ?? 0.0).toDouble(),
+              'power': (data['power'] ?? 0.0).toDouble(),
+              'energy': (data['energy'] ?? 0.0).toDouble(),
+              'relay1': data['relay1'] ?? false,
+              'relay2': data['relay2'] ?? false,
+              'timestamp': DateTime.now().millisecondsSinceEpoch,
+            };
+          }
+        } catch (e) {
+          debugPrint('⚠️ ESP32 URL $esp32Url failed: $e');
+          continue; // Try next URL
+        }
       }
-      return {'success': false, 'error': 'ESP32 not responding'};
+      
+      // If all ESP32 URLs fail, try to get data from server API
+      debugPrint('📡 All ESP32 IPs failed, trying server API...');
+      try {
+        final serverData = await get('/esp32/latest');
+        if (serverData['success'] == true) {
+          debugPrint('✅ Got ESP32 data from server API');
+          return {
+            'success': true,
+            'voltage': (serverData['voltage'] ?? 220.0).toDouble(),
+            'current': (serverData['current'] ?? 0.0).toDouble(),
+            'power': (serverData['power'] ?? 0.0).toDouble(),
+            'energy': (serverData['energy'] ?? 0.0).toDouble(),
+            'relay1': serverData['relay1'] ?? false,
+            'relay2': serverData['relay2'] ?? false,
+          };
+        }
+      } catch (e) {
+        debugPrint('⚠️ Server API also failed: $e');
+      }
+      
+      return {'success': false, 'error': 'ESP32 not responding from any source'};
     } catch (e) {
       debugPrint('❌ ESP32 sensor error: $e');
       return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Control ESP32 relay 1 ON (direct to ESP32)
+  static Future<bool> controlESP32Relay1On() async {
+    try {
+      debugPrint('🔌 Turning ESP32 Relay 1 ON...');
+      const List<String> urls = [
+        'http://10.168.130.214:80/api/relay1/on',
+        'http://192.168.1.100:80/api/relay1/on',
+        'http://wattbuddy.local:80/api/relay1/on',
+      ];
+      
+      for (final url in urls) {
+        try {
+          final response = await http
+              .get(Uri.parse(url), headers: {'Content-Type': 'application/json'})
+              .timeout(const Duration(seconds: 5));
+
+          if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            if (data['success'] == true) {
+              debugPrint('✅ Relay 1 turned ON');
+              return true;
+            }
+          }
+        } catch (e) {
+          debugPrint('⚠️ URL $url failed: $e');
+          continue;
+        }
+      }
+      return false;
+    } catch (e) {
+      debugPrint('❌ Relay 1 ON error: $e');
+      return false;
+    }
+  }
+
+  /// Control ESP32 relay 1 OFF (direct to ESP32)
+  static Future<bool> controlESP32Relay1Off() async {
+    try {
+      debugPrint('🔌 Turning ESP32 Relay 1 OFF...');
+      const List<String> urls = [
+        'http://10.168.130.214:80/api/relay1/off',
+        'http://192.168.1.100:80/api/relay1/off',
+        'http://wattbuddy.local:80/api/relay1/off',
+      ];
+      
+      for (final url in urls) {
+        try {
+          final response = await http
+              .get(Uri.parse(url), headers: {'Content-Type': 'application/json'})
+              .timeout(const Duration(seconds: 5));
+
+          if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            if (data['success'] == true) {
+              debugPrint('✅ Relay 1 turned OFF');
+              return true;
+            }
+          }
+        } catch (e) {
+          debugPrint('⚠️ URL $url failed: $e');
+          continue;
+        }
+      }
+      return false;
+    } catch (e) {
+      debugPrint('❌ Relay 1 OFF error: $e');
+      return false;
+    }
+  }
+
+  /// Control ESP32 relay 2 ON (direct to ESP32)
+  static Future<bool> controlESP32Relay2On() async {
+    try {
+      debugPrint('🔌 Turning ESP32 Relay 2 ON...');
+      const List<String> urls = [
+        'http://10.168.130.214:80/api/relay2/on',
+        'http://192.168.1.100:80/api/relay2/on',
+        'http://wattbuddy.local:80/api/relay2/on',
+      ];
+      
+      for (final url in urls) {
+        try {
+          final response = await http
+              .get(Uri.parse(url), headers: {'Content-Type': 'application/json'})
+              .timeout(const Duration(seconds: 5));
+
+          if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            if (data['success'] == true) {
+              debugPrint('✅ Relay 2 turned ON');
+              return true;
+            }
+          }
+        } catch (e) {
+          debugPrint('⚠️ URL $url failed: $e');
+          continue;
+        }
+      }
+      return false;
+    } catch (e) {
+      debugPrint('❌ Relay 2 ON error: $e');
+      return false;
+    }
+  }
+
+  /// Control ESP32 relay 2 OFF (direct to ESP32)
+  static Future<bool> controlESP32Relay2Off() async {
+    try {
+      debugPrint('🔌 Turning ESP32 Relay 2 OFF...');
+      const List<String> urls = [
+        'http://10.168.130.214:80/api/relay2/off',
+        'http://192.168.1.100:80/api/relay2/off',
+        'http://wattbuddy.local:80/api/relay2/off',
+      ];
+      
+      for (final url in urls) {
+        try {
+          final response = await http
+              .get(Uri.parse(url), headers: {'Content-Type': 'application/json'})
+              .timeout(const Duration(seconds: 5));
+
+          if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            if (data['success'] == true) {
+              debugPrint('✅ Relay 2 turned OFF');
+              return true;
+            }
+          }
+        } catch (e) {
+          debugPrint('⚠️ URL $url failed: $e');
+          continue;
+        }
+      }
+      return false;
+    } catch (e) {
+      debugPrint('❌ Relay 2 OFF error: $e');
+      return false;
     }
   }
 

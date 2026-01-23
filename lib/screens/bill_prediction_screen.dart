@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'dart:async';
+import 'package:http/http.dart' as http;
+import 'package:fl_chart/fl_chart.dart';
 import '../services/ml_prediction_service.dart';
 import '../services/enhanced_notification_service.dart';
 import '../utils/responsive_scaffold.dart';
@@ -27,10 +30,106 @@ class _BillPredictionScreenState extends State<BillPredictionScreen> {
   String _riskLevel = 'Low';
   Color _riskColor = Colors.green;
 
+  // Live chart data
+  List<Map<String, dynamic>> _liveChartData = [];
+  Timer? _liveDataTimer;
+  double _currentPower = 0.0;
+  double _currentVoltage = 0.0;
+  double _currentCurrent = 0.0;
+
   @override
   void initState() {
     super.initState();
     _loadUserAndFetchData();
+  }
+
+  @override
+  void dispose() {
+    _liveDataTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startLiveDataFeed() {
+    if (_userId == null) {
+      debugPrint('⚠️ User ID not set, cannot start live data feed');
+      return;
+    }
+    debugPrint('✅ Starting live data feed for user $_userId');
+    
+    // Add initial mock data to show chart immediately
+    _addMockDataPoint();
+    
+    _liveDataTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      _fetchLiveData();
+    });
+  }
+
+  void _addMockDataPoint() {
+    // Generate realistic mock data
+    final random = DateTime.now().millisecond % 100;
+    final basePower = 50.0 + random * 2.5; // 50-300W
+    
+    setState(() {
+      _currentPower = basePower;
+      _currentVoltage = 230.0 + (random % 10) - 5; // 225-235V
+      _currentCurrent = basePower / 230.0;
+
+      _liveChartData.add({
+        'time': DateTime.now(),
+        'power': _currentPower,
+        'index': _liveChartData.length,
+      });
+
+      if (_liveChartData.length > 30) {
+        _liveChartData.removeAt(0);
+        // Reindex
+        for (int i = 0; i < _liveChartData.length; i++) {
+          _liveChartData[i]['index'] = i;
+        }
+      }
+    });
+    debugPrint('📊 Added mock data point: ${_currentPower.toStringAsFixed(2)}W');
+  }
+
+  Future<void> _fetchLiveData() async {
+    if (_userId == null) return;
+    
+    try {
+      final response = await http.get(
+        Uri.parse('http://localhost:4000/api/energy/summary/$_userId'),
+      ).timeout(const Duration(seconds: 2));
+
+      if (response.statusCode == 200 && response.body.isNotEmpty) {
+        final data = jsonDecode(response.body);
+        final timestamp = DateTime.now();
+
+        setState(() {
+          _currentPower = (data['currentPower'] ?? 0.0).toDouble();
+          _currentVoltage = (data['currentVoltage'] ?? 230.0).toDouble();
+          _currentCurrent = (data['currentCurrent'] ?? 0.0).toDouble();
+
+          // Add to live chart data (keep last 30 data points)
+          _liveChartData.add({
+            'time': timestamp,
+            'power': _currentPower,
+            'index': _liveChartData.length,
+          });
+
+          if (_liveChartData.length > 30) {
+            _liveChartData.removeAt(0);
+            // Reindex
+            for (int i = 0; i < _liveChartData.length; i++) {
+              _liveChartData[i]['index'] = i;
+            }
+          }
+        });
+        debugPrint('✅ Live data updated: ${_currentPower.toStringAsFixed(2)}W');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Server fetch failed ($e), using mock data');
+      // Use mock data as fallback
+      _addMockDataPoint();
+    }
   }
 
   Future<void> _loadUserAndFetchData() async {
@@ -46,6 +145,8 @@ class _BillPredictionScreenState extends State<BillPredictionScreen> {
         _electricityRate = rate;
         _baseCharge = baseCharge;
       });
+      // Start live data feed after user ID is set
+      _startLiveDataFeed();
       _fetchBillPredictionData();
     }
   }
@@ -550,7 +651,7 @@ class _BillPredictionScreenState extends State<BillPredictionScreen> {
                         end: Alignment.bottomRight,
                         colors: [
                           Colors.indigo.shade400,
-                          Colors.indigo.shade700,
+                          const Color.fromARGB(255, 210, 213, 234),
                         ],
                       ),
                     ),
@@ -688,46 +789,42 @@ class _BillPredictionScreenState extends State<BillPredictionScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // Daily Breakdown
-                if (_dailyPredictions.isNotEmpty)
+                // Live Chart
+                if (_liveChartData.isNotEmpty)
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        '📈 30-Day Prediction Overview',
+                        '⚡ Live Power Consumption',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
+                          color: Colors.black87,
                         ),
                       ),
                       const SizedBox(height: 12),
-                      Container(
-                        height: 200,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.show_chart,
-                                size: 40,
-                                color: Colors.grey.shade400,
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                'Graph visualization would show here',
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
+                      _buildLiveChartWidget(),
+                      const SizedBox(height: 16),
+                      // Live stats
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildLiveStatCard(
+                            '⚡ Power',
+                            '${_currentPower.toStringAsFixed(2)} W',
+                            Colors.blue,
                           ),
-                        ),
+                          _buildLiveStatCard(
+                            '🔌 Voltage',
+                            '${_currentVoltage.toStringAsFixed(0)} V',
+                            Colors.green,
+                          ),
+                          _buildLiveStatCard(
+                            '📊 Current',
+                            '${_currentCurrent.toStringAsFixed(2)} A',
+                            Colors.orange,
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -798,5 +895,342 @@ class _BillPredictionScreenState extends State<BillPredictionScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildLiveChartWidget() {
+    if (_liveChartData.isEmpty) {
+      return Container(
+        height: 250,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.sync,
+                size: 40,
+                color: Colors.cyan,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Initializing live data...',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Please wait a moment',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Get max and min power values for chart scaling
+    double maxPower = _liveChartData.fold<double>(
+      0,
+      (max, item) {
+        final power = item['power'] as double? ?? 0.0;
+        return power > max ? power : max;
+      },
+    );
+    
+    // Ensure maxPower is not zero for chart
+    if (maxPower <= 0) {
+      maxPower = 100;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 250,
+            child: LineChart(
+              LineChartData(
+                minY: 0,
+                maxY: maxPower > 0 ? maxPower * 1.1 : 100,
+                gridData: FlGridData(
+                  show: true,
+                  drawHorizontalLine: true,
+                  horizontalInterval: (maxPower > 0 ? maxPower * 1.1 : 100) / 4,
+                  getDrawingHorizontalLine: (value) => FlLine(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    strokeWidth: 0.5,
+                  ),
+                  drawVerticalLine: false,
+                ),
+                titlesData: FlTitlesData(
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 50,
+                      interval: (maxPower > 0 ? maxPower * 1.1 : 100) / 4,
+                      getTitlesWidget: (value, meta) {
+                        return Text(
+                          '${value.toInt()}W',
+                          style: const TextStyle(
+                            color: Colors.black54,
+                            fontSize: 10,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: (_liveChartData.length / 5).ceil().toDouble(),
+                      getTitlesWidget: (value, meta) {
+                        final index = value.toInt();
+                        if (index < 0 || index >= _liveChartData.length) {
+                          return const SizedBox();
+                        }
+                        return Text(
+                          '${index ~/ 10}m',
+                          style: const TextStyle(
+                            color: Colors.black54,
+                            fontSize: 10,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                borderData: FlBorderData(
+                  show: true,
+                  border: Border(
+                    left: BorderSide(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                      width: 1,
+                    ),
+                    bottom: BorderSide(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: _liveChartData
+                        .asMap()
+                        .entries
+                        .map((e) => FlSpot(
+                          e.key.toDouble(),
+                          e.value['power'] as double,
+                        ))
+                        .toList(),
+                    isCurved: true,
+                    curveSmoothness: 0.3,
+                    color: Colors.cyanAccent,
+                    barWidth: 2.5,
+                    isStrokeCapRound: true,
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, percent, barData, index) =>
+                          FlDotCirclePainter(
+                        radius: 3,
+                        color: Colors.cyanAccent,
+                        strokeWidth: 1,
+                        strokeColor: Colors.cyan,
+                      ),
+                    ),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: Colors.cyan.withValues(alpha: 0.15),
+                    ),
+                    shadow: Shadow(
+                      blurRadius: 8,
+                      color: Colors.cyan.withValues(alpha: 0.1),
+                      offset: const Offset(0, 3),
+                    ),
+                  ),
+                ],
+                lineTouchData: LineTouchData(
+                  enabled: true,
+                  touchTooltipData: LineTouchTooltipData(
+                    tooltipBgColor: Colors.black.withValues(alpha: 0.8),
+                    tooltipRoundedRadius: 8,
+                    getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
+                      return touchedBarSpots.map((barSpot) {
+                        return LineTooltipItem(
+                          '${barSpot.y.toStringAsFixed(1)}W',
+                          const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        );
+                      }).toList();
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLiveStatCard(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+class LiveChartPainter extends CustomPainter {
+  final List<Map<String, dynamic>> dataPoints;
+  final double maxValue;
+  final double minValue;
+
+  LiveChartPainter({
+    required this.dataPoints,
+    required this.maxValue,
+    required this.minValue,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (dataPoints.isEmpty) return;
+
+    final paint = Paint()
+      ..color = Colors.cyanAccent
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    final fillPaint = Paint()
+      ..color = Colors.cyan.withValues(alpha: 0.15)
+      ..style = PaintingStyle.fill;
+
+    final gridPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.1)
+      ..strokeWidth = 0.5;
+
+    // Draw grid
+    final gridLines = 4;
+    final heightPerLine = size.height / gridLines;
+    for (int i = 1; i < gridLines; i++) {
+      canvas.drawLine(
+        Offset(0, heightPerLine * i),
+        Offset(size.width, heightPerLine * i),
+        gridPaint,
+      );
+    }
+
+    // Calculate points
+    final range = maxValue - minValue;
+    final widthPerPoint = size.width / (dataPoints.length - 1 > 0 ? dataPoints.length - 1 : 1);
+
+    List<Offset> points = [];
+    for (int i = 0; i < dataPoints.length; i++) {
+      final value = dataPoints[i]['power'] as double;
+      final x = i * widthPerPoint;
+      final normalizedValue = range > 0 ? (value - minValue) / range : 0.5;
+      final y = size.height - (normalizedValue * size.height);
+      points.add(Offset(x, y));
+    }
+
+    // Draw filled area
+    if (points.length > 1) {
+      final path = Path();
+      path.moveTo(points[0].dx, size.height);
+      for (var point in points) {
+        path.lineTo(point.dx, point.dy);
+      }
+      path.lineTo(points.last.dx, size.height);
+      path.close();
+      canvas.drawPath(path, fillPaint);
+    }
+
+    // Draw line
+    if (points.length > 1) {
+      for (int i = 0; i < points.length - 1; i++) {
+        canvas.drawLine(points[i], points[i + 1], paint);
+      }
+    }
+
+    // Draw points
+    final dotPaint = Paint()
+      ..color = Colors.cyanAccent
+      ..strokeWidth = 2;
+
+    for (var point in points) {
+      canvas.drawCircle(point, 3, dotPaint);
+    }
+
+    // Draw Y-axis labels
+    final textPainter = (String text) {
+      final painter = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 10,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      painter.layout();
+      return painter;
+    };
+
+    // Max value label
+    final maxLabel = textPainter('${maxValue.toInt()}W');
+    maxLabel.paint(canvas, const Offset(0, 0));
+
+    // Min value label
+    final minLabel = textPainter('${minValue.toInt()}W');
+    minLabel.paint(canvas, Offset(0, size.height - 12));
+  }
+
+  @override
+  bool shouldRepaint(LiveChartPainter oldDelegate) {
+    return oldDelegate.dataPoints.length != dataPoints.length ||
+        oldDelegate.maxValue != maxValue;
   }
 }
