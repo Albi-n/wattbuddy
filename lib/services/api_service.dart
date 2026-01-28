@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'websocket_service.dart';
 
 class ApiService {
   // Use emulator host so Android emulator can reach the local server
@@ -12,8 +13,8 @@ class ApiService {
     }
 
     if (Platform.isAndroid) {
-      // REAL ANDROID PHONE (CPH2001)
-      return 'http://172.17.4.170:4000/api';
+      // REAL ANDROID PHONE on OPPO F15 hotspot
+      return 'http://192.168.6.214:4000/api';
     }
 
     // Windows / macOS / Linux
@@ -205,10 +206,11 @@ class ApiService {
 
   static Future<Map<String, dynamic>> getRelayStatus() async {
     try {
-      debugPrint('📤 Getting relay status');
+      debugPrint('📤 Getting relay status from backend cache');
+      // Point to the backend's ESP32 cache endpoint instead of /api/relay/all
       final response = await http
           .get(
-            Uri.parse('$baseUrl/relay/all'),
+            Uri.parse('http://localhost:4000/esp32/latest'),
             headers: {'Content-Type': 'application/json'},
           )
           .timeout(connectionTimeout);
@@ -233,68 +235,61 @@ class ApiService {
     try {
       debugPrint('📊 Fetching ESP32 sensor readings...');
       
-      // Try multiple ESP32 addresses with fallback
-      const List<String> esp32Urls = [
-        'http://192.168.198.203:80/api/readings',     // Primary (actual ESP32 IP)
-        'http://10.168.130.214:80/api/readings',      // Secondary fallback
-        'http://192.168.1.100:80/api/readings',       // Tertiary fallback
-        'http://192.168.0.100:80/api/readings',       // Quaternary fallback
-        'http://wattbuddy.local:80/api/readings',     // mDNS fallback
-      ];
+      // FORCE the correct IP - no multi-address attempts to avoid delays
+      const String espIp = '192.168.6.203';
+      final url = Uri.parse('http://$espIp/api/readings');
       
-      int attemptNum = 0;
-      for (final esp32Url in esp32Urls) {
-        attemptNum++;
+      debugPrint('🔍 ESP32 Direct: http://$espIp/api/readings');
+      final response = await http
+          .get(
+            url,
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 2));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        debugPrint('✅ ESP32 SUCCESS: $data');
+        
+        // Create sensor data
+        final sensorData = {
+          'voltage': (data['voltage'] ?? 220.0).toDouble(),
+          'current': (data['current'] ?? 0.0).toDouble(),
+          'power': (data['power'] ?? 0.0).toDouble(),
+          'energy': (data['energy'] ?? 0.0).toDouble(),
+          'relay1': data['relay1'] ?? false,
+          'relay2': data['relay2'] ?? false,
+        };
+        
+        // 🚀 POST THIS DATA TO BACKEND SERVER
         try {
-          debugPrint('🔍 ESP32 attempt $attemptNum/${esp32Urls.length}: $esp32Url');
-          final response = await http
-              .get(
-                Uri.parse(esp32Url),
+          debugPrint('📤 Sending ESP32 data to backend...');
+          final backendResponse = await http
+              .post(
+                Uri.parse('http://localhost:4000/api/esp32/data'),
                 headers: {'Content-Type': 'application/json'},
+                body: jsonEncode(sensorData),
               )
               .timeout(const Duration(seconds: 5));
-
-          if (response.statusCode == 200) {
-            final data = jsonDecode(response.body);
-            debugPrint('✅ ESP32 SUCCESS at $esp32Url: $data');
-            return {
-              'success': true,
-              'voltage': (data['voltage'] ?? 220.0).toDouble(),
-              'current': (data['current'] ?? 0.0).toDouble(),
-              'power': (data['power'] ?? 0.0).toDouble(),
-              'energy': (data['energy'] ?? 0.0).toDouble(),
-              'relay1': data['relay1'] ?? false,
-              'relay2': data['relay2'] ?? false,
-              'timestamp': DateTime.now().millisecondsSinceEpoch,
-            };
+          
+          if (backendResponse.statusCode == 200) {
+            debugPrint('✅ Backend received data successfully');
+          } else {
+            debugPrint('⚠️ Backend returned: ${backendResponse.statusCode}');
           }
         } catch (e) {
-          debugPrint('❌ Attempt $attemptNum FAILED - $esp32Url: $e');
-          continue; // Try next URL
+          debugPrint('⚠️ Could not send to backend: $e');
         }
+        
+        // Return successful response
+        return {
+          'success': true,
+          ...sensorData,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+        };
       }
       
-      // If all ESP32 URLs fail, try to get data from server API
-      debugPrint('📡 All $attemptNum ESP32 IPs failed, trying server API...');
-      try {
-        final serverData = await get('/energy/latest');
-        if (serverData['success'] == true) {
-          debugPrint('✅ Got ESP32 data from server API');
-          return {
-            'success': true,
-            'voltage': (serverData['voltage'] ?? 220.0).toDouble(),
-            'current': (serverData['current'] ?? 0.0).toDouble(),
-            'power': (serverData['power'] ?? 0.0).toDouble(),
-            'energy': (serverData['energy'] ?? 0.0).toDouble(),
-            'relay1': serverData['relay1'] ?? false,
-            'relay2': serverData['relay2'] ?? false,
-          };
-        }
-      } catch (e) {
-        debugPrint('⚠️ Server API also failed: $e');
-      }
-      
-      return {'success': false, 'error': 'ESP32 not responding from any source'};
+      return {'success': false, 'error': 'ESP32 not responding'};
     } catch (e) {
       debugPrint('❌ ESP32 sensor error: $e');
       return {'success': false, 'error': e.toString()};
@@ -306,8 +301,8 @@ class ApiService {
     try {
       debugPrint('🔌 Turning ESP32 Relay 1 ON...');
       const List<String> urls = [
-        'http://192.168.198.203:80/api/relay1/on',
-        'http://10.168.130.214:80/api/relay1/on',
+        'http://192.168.6.203:80/api/relay1/on',     // Primary
+        'http://192.168.198.203:80/api/relay1/on',   // Secondary fallback
         'http://192.168.1.100:80/api/relay1/on',
         'http://wattbuddy.local:80/api/relay1/on',
       ];
@@ -342,8 +337,8 @@ class ApiService {
     try {
       debugPrint('🔌 Turning ESP32 Relay 1 OFF...');
       const List<String> urls = [
-        'http://192.168.198.203:80/api/relay1/off',
-        'http://10.168.130.214:80/api/relay1/off',
+        'http://192.168.6.203:80/api/relay1/off',    // Primary
+        'http://192.168.198.203:80/api/relay1/off',  // Secondary fallback
         'http://192.168.1.100:80/api/relay1/off',
         'http://wattbuddy.local:80/api/relay1/off',
       ];
@@ -378,8 +373,8 @@ class ApiService {
     try {
       debugPrint('🔌 Turning ESP32 Relay 2 ON...');
       const List<String> urls = [
-        'http://192.168.198.203:80/api/relay2/on',
-        'http://10.168.130.214:80/api/relay2/on',
+        'http://192.168.6.203:80/api/relay2/on',     // Primary
+        'http://192.168.198.203:80/api/relay2/on',   // Secondary fallback
         'http://192.168.1.100:80/api/relay2/on',
         'http://wattbuddy.local:80/api/relay2/on',
       ];
@@ -414,8 +409,8 @@ class ApiService {
     try {
       debugPrint('🔌 Turning ESP32 Relay 2 OFF...');
       const List<String> urls = [
-        'http://192.168.198.203:80/api/relay2/off',
-        'http://10.168.130.214:80/api/relay2/off',
+        'http://192.168.6.203:80/api/relay2/off',    // Primary
+        'http://192.168.198.203:80/api/relay2/off',  // Secondary fallback
         'http://192.168.1.100:80/api/relay2/off',
         'http://wattbuddy.local:80/api/relay2/off',
       ];
